@@ -15,7 +15,7 @@ namespace Microsoft.DotNet.Tools.Compiler
 {
     public abstract class Compiler : ICompiler
     {
-        public abstract bool Compile(ProjectContext context, CompilerCommandApp args);
+        public abstract bool Compile(ProjectContext context, CompilerCommandApp args, WorkspaceContext workspace);
 
         protected static bool PrintSummary(List<DiagnosticMessage> diagnostics, Stopwatch sw, bool success = true)
         {

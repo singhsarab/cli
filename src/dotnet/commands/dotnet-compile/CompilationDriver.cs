@@ -17,17 +17,17 @@ namespace Microsoft.DotNet.Tools.Compiler
             _nativeCompiler = nativeCompiler;
         }
 
-        public bool Compile(IEnumerable<ProjectContext> contexts, CompilerCommandApp args)
+        public bool Compile(IEnumerable<ProjectContext> contexts, CompilerCommandApp args, WorkspaceContext workspace)
         {
             var success = true;
 
             foreach (var context in contexts)
             {
-                success &= _managedCompiler.Compile(context, args);
+                success &= _managedCompiler.Compile(context, args, workspace);
                 if (args.IsNativeValue && success)
                 {
-                    var runtimeContext = context.CreateRuntimeContext(args.GetRuntimes());
-                    success &= _nativeCompiler.Compile(runtimeContext, args);
+                    var runtimeContext = workspace.GetRuntimeContext(context, args.GetRuntimes());
+                    success &= _nativeCompiler.Compile(runtimeContext, args, workspace);
                 }
             }
 

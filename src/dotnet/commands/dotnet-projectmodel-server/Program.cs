@@ -26,7 +26,7 @@ namespace Microsoft.DotNet.ProjectModel.Server
             _hostName = hostName;
             _loggerFactory = loggerFactory;
             _protocolManager = new ProtocolManager(maxVersion: 4, loggerFactory: _loggerFactory);
-            _workspaceContext = WorkspaceContext.Create();
+            _workspaceContext = WorkspaceContext.Create(ProjectReaderSettings.ReadFromEnvironment());
             _projects = new Dictionary<int, ProjectManager>();
         }
 

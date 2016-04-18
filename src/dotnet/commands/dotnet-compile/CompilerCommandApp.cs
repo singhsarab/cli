@@ -16,7 +16,7 @@ using NuGet.Frameworks;
 // It knows how to interpret them and set default values
 namespace Microsoft.DotNet.Tools.Compiler
 {
-    public delegate bool OnExecute(List<ProjectContext> contexts, CompilerCommandApp compilerCommand);
+    public delegate bool OnExecute(List<ProjectContext> contexts, CompilerCommandApp compilerCommand, WorkspaceContext workspace);
 
     public class CompilerCommandApp
     {
@@ -57,9 +57,12 @@ namespace Microsoft.DotNet.Tools.Compiler
 
         // workaround: CommandLineApplication is internal therefore I cannot make _app protected so baseclasses can add their own params
         private readonly Dictionary<string, CommandOption> baseClassOptions;
+        private WorkspaceContext _workspace;
 
-        public CompilerCommandApp(string name, string fullName, string description)
+        public CompilerCommandApp(string name, string fullName, string description) : this(name, fullName, description, null) { }
+        public CompilerCommandApp(string name, string fullName, string description, WorkspaceContext workspace)
         {
+            _workspace = workspace;
             _app = new CommandLineApplication
             {
                 Name = name,
@@ -128,15 +131,22 @@ namespace Microsoft.DotNet.Tools.Compiler
                 CppCompilerFlagsValue = _cppCompilerFlagsOption.Value();
 
                 // Set defaults based on the environment
-                var settings = ProjectReaderSettings.ReadFromEnvironment();
-
-                if (!string.IsNullOrEmpty(VersionSuffixValue))
+                if (_workspace == null)
                 {
-                    settings.VersionSuffix = VersionSuffixValue;
+                    var settings = ProjectReaderSettings.ReadFromEnvironment();
+
+                    if (!string.IsNullOrEmpty(VersionSuffixValue))
+                    {
+                        settings.VersionSuffix = VersionSuffixValue;
+                    }
+                    _workspace = WorkspaceContext.Create(settings);
                 }
 
                 // Load the project file and construct all the targets
-                var targets = ProjectContext.CreateContextForEachFramework(ProjectPathValue, settings).ToList();
+                var targets = _workspace.GetProjectContextCollection(ProjectPathValue)
+                    .ProjectContexts
+                    .Where(c => string.IsNullOrEmpty(c.RuntimeIdentifier))
+                    .ToList();
 
                 if (targets.Count == 0)
                 {
@@ -163,7 +173,7 @@ namespace Microsoft.DotNet.Tools.Compiler
 
                 Debug.Assert(targets.All(t => string.IsNullOrEmpty(t.RuntimeIdentifier)));
 
-                var success = execute(targets, this);
+                var success = execute(targets, this, _workspace);
 
                 return success ? 0 : 1;
             });

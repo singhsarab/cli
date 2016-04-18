@@ -3,13 +3,16 @@
 
 using System;
 using Microsoft.DotNet.Cli.Utils;
+using Microsoft.DotNet.ProjectModel;
 
 namespace Microsoft.DotNet.Tools.Compiler
 {
     public class CompileCommand
     {
 
-        public static int Run(string[] args)
+        public static int Run(string[] args) => Run(args, null);
+
+        public static int Run(string[] args, WorkspaceContext workspace)
         {
             DebugHelper.HandleDebugSwitch(ref args);
 
@@ -21,7 +24,7 @@ namespace Microsoft.DotNet.Tools.Compiler
                 var nativeCompiler = new NativeCompiler();
                 var compilationDriver = new CompilationDriver(managedCompiler, nativeCompiler);
 
-                var compilerCommandArgs = new CompilerCommandApp("dotnet compile", ".NET Compiler", "Compiler for the .NET Platform");
+                var compilerCommandArgs = new CompilerCommandApp("dotnet compile", ".NET Compiler", "Compiler for the .NET Platform", workspace);
 
                 return compilerCommandArgs.Execute(compilationDriver.Compile, args);
             }

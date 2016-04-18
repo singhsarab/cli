@@ -1,6 +1,7 @@
 // Copyright (c) .NET Foundation and contributors. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Microsoft.DotNet.ProjectModel;
 using Microsoft.DotNet.Tools.Compiler;
 
 namespace Microsoft.DotNet.Tools.Build
@@ -15,7 +16,8 @@ namespace Microsoft.DotNet.Tools.Build
         public bool ShouldNotUseIncrementality => OptionHasValue(NoIncrementalFlag);
         public bool ShouldSkipDependencies => OptionHasValue(NoDependenciesFlag);
 
-        public BuilderCommandApp(string name, string fullName, string description) : base(name, fullName, description)
+        public BuilderCommandApp(string name, string fullName, string description) : base(name, fullName, description) { }
+        public BuilderCommandApp(string name, string fullName, string description, WorkspaceContext workspace) : base(name, fullName, description, workspace)
         {
             AddNoValueOption(BuildProfileFlag, "Set this flag to print the incremental safety checks that prevent incremental compilation");
             AddNoValueOption(NoIncrementalFlag, "Set this flag to turn off incremental build");

@@ -10,7 +10,7 @@ namespace Microsoft.DotNet.Tools.Compiler
 {
     public class NativeCompiler : Compiler
     {
-        public override bool Compile(ProjectContext context, CompilerCommandApp args)
+        public override bool Compile(ProjectContext context, CompilerCommandApp args, WorkspaceContext workspace)
         {
             var outputPaths = context.GetOutputPaths(args.ConfigValue, args.BuildBasePathValue, args.OutputValue);
             var outputPath = outputPaths.RuntimeOutputPath;

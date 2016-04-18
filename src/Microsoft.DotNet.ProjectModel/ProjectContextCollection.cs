@@ -4,6 +4,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using NuGet.Frameworks;
 
 namespace Microsoft.DotNet.ProjectModel
 {
@@ -49,6 +51,14 @@ namespace Microsoft.DotNet.ProjectModel
 
                 return false;
             }
+        }
+
+        public ProjectContext GetTarget(NuGetFramework targetFramework, string runtimeIdentifier)
+        {
+            return ProjectContexts
+                .FirstOrDefault(c =>
+                    Equals(c.TargetFramework, targetFramework) &&
+                    string.Equals(c.RuntimeIdentifier ?? string.Empty, runtimeIdentifier ?? string.Empty));
         }
 
         public void Reset()

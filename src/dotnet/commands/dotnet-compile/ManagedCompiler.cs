@@ -26,7 +26,7 @@ namespace Microsoft.DotNet.Tools.Compiler
             _commandFactory = commandFactory;
         }
 
-        public override bool Compile(ProjectContext context, CompilerCommandApp args)
+        public override bool Compile(ProjectContext context, CompilerCommandApp args, WorkspaceContext workspace)
         {
             // Set up Output Paths
             var outputPaths = context.GetOutputPaths(args.ConfigValue, args.BuildBasePathValue);
@@ -167,7 +167,7 @@ namespace Microsoft.DotNet.Tools.Compiler
 
             if (context.ProjectFile.HasRuntimeOutput(args.ConfigValue))
             {
-                var runtimeContext = context.CreateRuntimeContext(args.GetRuntimes());
+                var runtimeContext = workspace.GetRuntimeContext(context, args.GetRuntimes());
                 var runtimeOutputPath = runtimeContext.GetOutputPaths(args.ConfigValue, args.BuildBasePathValue, args.OutputValue);
 
                 contextVariables.Add(

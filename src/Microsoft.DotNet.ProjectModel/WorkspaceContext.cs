@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using Microsoft.DotNet.ProjectModel.Graph;
 using Microsoft.DotNet.ProjectModel.Utilities;
+using NuGet.Frameworks;
 
 namespace Microsoft.DotNet.ProjectModel
 {
@@ -28,9 +29,12 @@ namespace Microsoft.DotNet.ProjectModel
         private readonly HashSet<string> _projects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         private bool _needRefresh;
+        private readonly ProjectReaderSettings _settings;
 
-        private WorkspaceContext(IEnumerable<string> projectPaths)
+        private WorkspaceContext(IEnumerable<string> projectPaths, ProjectReaderSettings settings)
         {
+            _settings = settings;
+
             foreach (var path in projectPaths)
             {
                 AddProject(path);
@@ -41,31 +45,31 @@ namespace Microsoft.DotNet.ProjectModel
 
         /// <summary>
         /// Create a WorkspaceContext from a given path.
-        /// 
-        /// There must be either a global.json or project.json at under the given path. Otherwise
-        /// null is returned.
-        /// 
+        ///
         /// If the given path points to a global.json, all the projects found under the search paths
         /// are added to the WorkspaceContext.
-        /// 
+        ///
         /// If the given path points to a project.json, all the projects it referenced as well as itself
         /// are added to the WorkspaceContext.
+        ///
+        /// If no path is provided, the workspace context is created empty and projects must be manually added
+        /// to it using <see cref="AddProject(string)"/>.
         /// </summary>
         public static WorkspaceContext CreateFrom(string projectPath)
         {
             var projectPaths = ResolveProjectPath(projectPath);
             if (projectPaths == null || !projectPaths.Any())
             {
-                return null;
+                return new WorkspaceContext(Enumerable.Empty<string>(), ProjectReaderSettings.ReadFromEnvironment());
             }
 
-            var context = new WorkspaceContext(projectPaths);
+            var context = new WorkspaceContext(projectPaths, ProjectReaderSettings.ReadFromEnvironment());
             return context;
         }
 
-        public static WorkspaceContext Create()
+        public static WorkspaceContext Create(ProjectReaderSettings settings)
         {
-            return new WorkspaceContext(Enumerable.Empty<string>());
+            return new WorkspaceContext(Enumerable.Empty<string>(), settings);
         }
 
         public void AddProject(string path)
@@ -133,10 +137,47 @@ namespace Microsoft.DotNet.ProjectModel
             return GetProjectContextCollection(projectPath).ProjectContexts;
         }
 
+        public ProjectContext GetProjectContext(string projectPath, NuGetFramework framework) => GetProjectContext(projectPath, framework, string.Empty);
+        public ProjectContext GetProjectContext(string projectPath, NuGetFramework framework, string runtimeIdentifier)
+        {
+            var contexts = GetProjectContextCollection(projectPath);
+
+            return contexts
+                .ProjectContexts
+                .FirstOrDefault(c => Equals(c.TargetFramework, framework) && string.Equals(c.RuntimeIdentifier ?? string.Empty, runtimeIdentifier ?? string.Empty));
+        }
+
+        public ProjectContext GetRuntimeContext(ProjectContext context, IEnumerable<string> runtimeIdentifiers)
+        {
+            // Temporary until we have removed RID inference from NuGet
+            if(context.TargetFramework.IsCompileOnly)
+            {
+                return context;
+            }
+
+            var contexts = GetProjectContextCollection(context.ProjectDirectory);
+
+            var runtimeContext = runtimeIdentifiers
+                .Select(r => contexts.GetTarget(context.TargetFramework, r))
+                .FirstOrDefault(c => c != null);
+
+            if (!context.IsPortable && runtimeContext == null)
+            {
+                // We are standalone, but don't support this runtime
+                var rids = string.Join(", ", runtimeIdentifiers);
+                throw new InvalidOperationException($"Can not find runtime target for framework '{context.TargetFramework}' compatible with one of the target runtimes: '{rids}'. " +
+                                                    "Possible causes:" + Environment.NewLine +
+                                                    "1. The project has not been restored or restore failed - run `dotnet restore`" + Environment.NewLine +
+                                                    $"2. The project does not list one of '{rids}' in the 'runtimes' section.");
+            }
+
+            return runtimeContext ?? context;
+        }
+
         public ProjectContextCollection GetProjectContextCollection(string projectPath)
         {
             return _projectContextsCache.AddOrUpdate(
-                projectPath,
+                NormalizeProjectPath(projectPath),
                 key => AddProjectContextEntry(key, null),
                 (key, oldEntry) => AddProjectContextEntry(key, oldEntry));
         }
@@ -144,7 +185,7 @@ namespace Microsoft.DotNet.ProjectModel
         private FileModelEntry<Project> GetProject(string projectDirectory)
         {
             return _projectsCache.AddOrUpdate(
-                projectDirectory,
+                NormalizeProjectPath(projectDirectory),
                 key => AddProjectEntry(key, null),
                 (key, oldEntry) => AddProjectEntry(key, oldEntry));
         }
@@ -152,7 +193,7 @@ namespace Microsoft.DotNet.ProjectModel
         private LockFile GetLockFile(string projectDirectory)
         {
             return _lockFileCache.AddOrUpdate(
-                projectDirectory,
+                NormalizeProjectPath(projectDirectory),
                 key => AddLockFileEntry(key, null),
                 (key, oldEntry) => AddLockFileEntry(key, oldEntry)).Model;
         }
@@ -173,7 +214,7 @@ namespace Microsoft.DotNet.ProjectModel
             if (currentEntry.IsInvalid)
             {
                 Project project;
-                if (!ProjectReader.TryGetProject(projectDirectory, out project, currentEntry.Diagnostics))
+                if (!ProjectReader.TryGetProject(projectDirectory, out project, currentEntry.Diagnostics, _settings))
                 {
                     currentEntry.Reset();
                 }

@@ -14,13 +14,19 @@ namespace Microsoft.DotNet.Tools.Build
 {
     public class BuildCommand
     {
-        public static int Run(string[] args)
+        public static int Run(string[] args) => Run(args, null);
+
+        public static int Run(string[] args, WorkspaceContext workspace)
         {
             DebugHelper.HandleDebugSwitch(ref args);
 
             try
             {
-                var app = new BuilderCommandApp("dotnet build", ".NET Builder", "Builder for the .NET Platform. It performs incremental compilation if it's safe to do so. Otherwise it delegates to dotnet-compile which performs non-incremental compilation");
+                var app = new BuilderCommandApp(
+                    "dotnet build",
+                    ".NET Builder",
+                    "Builder for the .NET Platform. It performs incremental compilation if it's safe to do so. Otherwise it delegates to dotnet-compile which performs non-incremental compilation",
+                    workspace);
                 return app.Execute(OnExecute, args);
             }
             catch (Exception ex)
@@ -34,9 +40,9 @@ namespace Microsoft.DotNet.Tools.Build
             }
         }
 
-        private static bool OnExecute(List<ProjectContext> contexts, CompilerCommandApp args)
+        private static bool OnExecute(List<ProjectContext> contexts, CompilerCommandApp args, WorkspaceContext workspace)
         {
-            var compileContexts = contexts.Select(context => new CompileContext(context, (BuilderCommandApp)args)).ToList();
+            var compileContexts = contexts.Select(context => new CompileContext(context, (BuilderCommandApp)args, workspace)).ToList();
 
             var incrementalSafe = compileContexts.All(c => c.IsSafeForIncrementalCompilation);
 

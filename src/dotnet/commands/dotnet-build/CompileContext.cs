@@ -27,11 +27,13 @@ namespace Microsoft.DotNet.Tools.Build
         private readonly ProjectDependenciesFacade _rootProjectDependencies;
         private readonly BuilderCommandApp _args;
         private readonly IncrementalPreconditions _preconditions;
+        private readonly WorkspaceContext _workspace;
 
         public bool IsSafeForIncrementalCompilation => !_preconditions.PreconditionsDetected();
 
-        public CompileContext(ProjectContext rootProject, BuilderCommandApp args)
+        public CompileContext(ProjectContext rootProject, BuilderCommandApp args, WorkspaceContext workspace)
         {
+            _workspace = workspace;
             _rootProject = rootProject;
 
             // Cleaner to clone the args and mutate the clone than have separate CompileContext fields for mutated args
@@ -82,7 +84,7 @@ namespace Microsoft.DotNet.Tools.Build
 
             foreach (var dependency in Sort(_rootProjectDependencies))
             {
-                var dependencyProjectContext = ProjectContext.Create(dependency.Path, dependency.Framework, new[] { _rootProject.RuntimeIdentifier });
+                var dependencyProjectContext = _workspace.GetProjectContext(dependency.Path, dependency.Framework, _rootProject.RuntimeIdentifier);
 
                 try
                 {
@@ -303,7 +305,8 @@ namespace Microsoft.DotNet.Tools.Build
 
             // convert ProjectDescription to ProjectContext
             var dependencyContexts = _rootProjectDependencies.ProjectDependenciesWithSources.Select
-                (keyValuePair => ProjectContext.Create(keyValuePair.Value.Path, keyValuePair.Value.Framework));
+                (keyValuePair => _workspace.GetProjectContext(keyValuePair.Value.Path, keyValuePair.Value.Framework))
+                .ToList();
 
             contextsToCheck.AddRange(dependencyContexts);
 
@@ -372,19 +375,13 @@ namespace Microsoft.DotNet.Tools.Build
                 args.Add(_args.RuntimeValue);
             }
 
-            if (!string.IsNullOrEmpty(_args.VersionSuffixValue))
-            {
-                args.Add("--version-suffix");
-                args.Add(_args.VersionSuffixValue);
-            }
-
             if (!string.IsNullOrWhiteSpace(_args.BuildBasePathValue))
             {
                 args.Add("--build-base-path");
                 args.Add(_args.BuildBasePathValue);
             }
 
-            var compileResult = CompileCommand.Run(args.ToArray());
+            var compileResult = CompileCommand.Run(args.ToArray(), _workspace);
 
             return compileResult == 0;
         }
@@ -408,12 +405,6 @@ namespace Microsoft.DotNet.Tools.Build
             {
                 args.Add("--output");
                 args.Add(_args.OutputValue);
-            }
-
-            if (!string.IsNullOrEmpty(_args.VersionSuffixValue))
-            {
-                args.Add("--version-suffix");
-                args.Add(_args.VersionSuffixValue);
             }
 
             if (!string.IsNullOrEmpty(_args.BuildBasePathValue))
@@ -465,7 +456,7 @@ namespace Microsoft.DotNet.Tools.Build
 
             args.Add(_rootProject.ProjectDirectory);
 
-            var compileResult = CompileCommand.Run(args.ToArray());
+            var compileResult = CompileCommand.Run(args.ToArray(), _workspace);
 
             var succeeded = compileResult == 0;
 
@@ -503,7 +494,7 @@ namespace Microsoft.DotNet.Tools.Build
         private void MakeRunnable()
         {
             var runtimeContext = _rootProject.ProjectFile.HasRuntimeOutput(_args.ConfigValue) ?
-                _rootProject.CreateRuntimeContext(_args.GetRuntimes()) :
+                _workspace.GetRuntimeContext(_rootProject, _args.GetRuntimes()) :
                 _rootProject;
 
             var outputPaths = runtimeContext.GetOutputPaths(_args.ConfigValue, _args.BuildBasePathValue, _args.OutputValue);
@@ -593,7 +584,7 @@ namespace Microsoft.DotNet.Tools.Build
             var allOutputPath = new HashSet<string>(calculator.CompilationFiles.All());
             if (isRootProject && project.ProjectFile.HasRuntimeOutput(buildConfiguration))
             {
-                var runtimeContext = project.CreateRuntimeContext(_args.GetRuntimes());
+                var runtimeContext = _workspace.GetRuntimeContext(project, _args.GetRuntimes());
                 foreach (var path in runtimeContext.GetOutputPaths(buildConfiguration, buildBasePath, outputPath).RuntimeFiles.All())
                 {
                     allOutputPath.Add(path);
