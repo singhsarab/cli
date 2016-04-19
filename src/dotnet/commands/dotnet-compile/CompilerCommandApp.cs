@@ -139,7 +139,7 @@ namespace Microsoft.DotNet.Tools.Compiler
                     {
                         settings.VersionSuffix = VersionSuffixValue;
                     }
-                    _workspace = WorkspaceContext.Create(settings);
+                    _workspace = WorkspaceContext.Create(settings, designTime: false);
                 }
 
                 // Load the project file and construct all the targets

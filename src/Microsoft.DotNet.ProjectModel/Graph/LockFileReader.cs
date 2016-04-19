@@ -13,9 +13,17 @@ using NuGet.Versioning;
 
 namespace Microsoft.DotNet.ProjectModel.Graph
 {
-    public static class LockFileReader
-    {        
-        public static LockFile Read(string lockFilePath, bool designTime)
+    public class LockFileReader
+    {
+        private readonly LockFileSymbolTable _symbols;
+
+        public LockFileReader(LockFileSymbolTable symbols)
+        {
+            _symbols = symbols;
+        }
+
+        public static LockFile Read(string lockFilePath, bool designTime) => Read(lockFilePath, designTime, new LockFileSymbolTable());
+        public static LockFile Read(string lockFilePath, bool designTime, LockFileSymbolTable symbols)
         {
             using (var stream = ResilientFileStreamOpener.OpenFile(lockFilePath))
             {
@@ -34,7 +42,8 @@ namespace Microsoft.DotNet.ProjectModel.Graph
             }
         }
 
-        public static LockFile Read(string lockFilePath, Stream stream, bool designTime)
+        public static LockFile Read(string lockFilePath, Stream stream, bool designTime) => Read(lockFilePath, stream, designTime, new LockFileSymbolTable());
+        public static LockFile Read(string lockFilePath, Stream stream, bool designTime, LockFileSymbolTable symbols)
         {
             try
             {
@@ -46,11 +55,12 @@ namespace Microsoft.DotNet.ProjectModel.Graph
                     throw new InvalidDataException();
                 }
 
-                var lockFile = ReadLockFile(lockFilePath, jobject);
-                
+                var lockFileReader = new LockFileReader(symbols);
+                var lockFile = lockFileReader.ReadLockFile(lockFilePath, jobject);
+
                 if (!designTime)
                 {
-                    var patcher = new LockFilePatcher(lockFile);
+                    var patcher = new LockFilePatcher(lockFile, lockFileReader);
                     patcher.Patch();
                 }
 
@@ -70,7 +80,7 @@ namespace Microsoft.DotNet.ProjectModel.Graph
             }
         }
 
-        public static ExportFile ReadExportFile(string fragmentLockFilePath)
+        public ExportFile ReadExportFile(string fragmentLockFilePath)
         {
             using (var stream = ResilientFileStreamOpener.OpenFile(fragmentLockFilePath))
             {
@@ -100,7 +110,7 @@ namespace Microsoft.DotNet.ProjectModel.Graph
             }
         }
 
-        private static LockFile ReadLockFile(string lockFilePath, JsonObject cursor)
+        private LockFile ReadLockFile(string lockFilePath, JsonObject cursor)
         {
             var lockFile = new LockFile(lockFilePath);
             lockFile.Version = ReadInt(cursor, "version", defaultValue: int.MinValue);
@@ -111,7 +121,7 @@ namespace Microsoft.DotNet.ProjectModel.Graph
             return lockFile;
         }
 
-        private static void ReadLibrary(JsonObject json, LockFile lockFile)
+        private void ReadLibrary(JsonObject json, LockFile lockFile)
         {
             if (json == null)
             {
@@ -128,9 +138,9 @@ namespace Microsoft.DotNet.ProjectModel.Graph
 
                 var parts = key.Split(new[] { '/' }, 2);
                 var name = parts[0];
-                var version = parts.Length == 2 ? NuGetVersion.Parse(parts[1]) : null;
+                var version = parts.Length == 2 ? _symbols.GetVersion(parts[1]) : null;
 
-                var type = value.ValueAsString("type")?.Value;
+                var type = _symbols.GetString(value.ValueAsString("type")?.Value);
 
                 if (type == null || string.Equals(type, "package", StringComparison.OrdinalIgnoreCase))
                 {
@@ -162,7 +172,7 @@ namespace Microsoft.DotNet.ProjectModel.Graph
             }
         }
 
-        private static LockFileTarget ReadTarget(string property, JsonValue json)
+        private LockFileTarget ReadTarget(string property, JsonValue json)
         {
             var jobject = json as JsonObject;
             if (jobject == null)
@@ -172,10 +182,10 @@ namespace Microsoft.DotNet.ProjectModel.Graph
 
             var target = new LockFileTarget();
             var parts = property.Split(new[] { '/' }, 2);
-            target.TargetFramework = NuGetFramework.Parse(parts[0]);
+            target.TargetFramework = _symbols.GetFramework(parts[0]);
             if (parts.Length == 2)
             {
-                target.RuntimeIdentifier = parts[1];
+                target.RuntimeIdentifier = _symbols.GetString(parts[1]);
             }
 
             target.Libraries = ReadObject(jobject, ReadTargetLibrary);
@@ -183,7 +193,7 @@ namespace Microsoft.DotNet.ProjectModel.Graph
             return target;
         }
 
-        private static LockFileTargetLibrary ReadTargetLibrary(string property, JsonValue json)
+        private LockFileTargetLibrary ReadTargetLibrary(string property, JsonValue json)
         {
             var jobject = json as JsonObject;
             if (jobject == null)
@@ -194,17 +204,17 @@ namespace Microsoft.DotNet.ProjectModel.Graph
             var library = new LockFileTargetLibrary();
 
             var parts = property.Split(new[] { '/' }, 2);
-            library.Name = parts[0];
+            library.Name = _symbols.GetString(parts[0]);
             if (parts.Length == 2)
             {
-                library.Version = NuGetVersion.Parse(parts[1]);
+                library.Version = _symbols.GetVersion(parts[1]);
             }
 
-            library.Type = jobject.ValueAsString("type");
+            library.Type = _symbols.GetString(jobject.ValueAsString("type"));
             var framework = jobject.ValueAsString("framework");
             if (framework != null)
             {
-                library.TargetFramework = NuGetFramework.Parse(framework);
+                library.TargetFramework = _symbols.GetFramework(framework);
             }
 
             library.Dependencies = ReadObject(jobject.ValueAsJsonObject("dependencies"), ReadPackageDependency);
@@ -215,10 +225,11 @@ namespace Microsoft.DotNet.ProjectModel.Graph
             library.NativeLibraries = ReadObject(jobject.ValueAsJsonObject("native"), ReadFileItem);
             library.ContentFiles = ReadObject(jobject.ValueAsJsonObject("contentFiles"), ReadContentFile);
             library.RuntimeTargets = ReadObject(jobject.ValueAsJsonObject("runtimeTargets"), ReadRuntimeTarget);
+
             return library;
         }
 
-        private static LockFileRuntimeTarget ReadRuntimeTarget(string property, JsonValue json)
+        private LockFileRuntimeTarget ReadRuntimeTarget(string property, JsonValue json)
         {
             var jsonObject = json as JsonObject;
             if (jsonObject == null)
@@ -227,13 +238,13 @@ namespace Microsoft.DotNet.ProjectModel.Graph
             }
 
             return new LockFileRuntimeTarget(
-                path: property,
-                runtime: jsonObject.ValueAsString("rid"),
-                assetType: jsonObject.ValueAsString("assetType")
+                path: _symbols.GetString(property),
+                runtime: _symbols.GetString(jsonObject.ValueAsString("rid")),
+                assetType: _symbols.GetString(jsonObject.ValueAsString("assetType"))
                 );
         }
 
-        private static LockFileContentFile ReadContentFile(string property, JsonValue json)
+        private LockFileContentFile ReadContentFile(string property, JsonValue json)
         {
             var contentFile = new LockFileContentFile()
             {
@@ -248,7 +259,7 @@ namespace Microsoft.DotNet.ProjectModel.Graph
                 BuildAction.TryParse(jsonObject.ValueAsString("buildAction"), out action);
 
                 contentFile.BuildAction = action;
-                var codeLanguage = jsonObject.ValueAsString("codeLanguage");
+                var codeLanguage = _symbols.GetString(jsonObject.ValueAsString("codeLanguage"));
                 if (codeLanguage == "any")
                 {
                     codeLanguage = null;
@@ -262,37 +273,37 @@ namespace Microsoft.DotNet.ProjectModel.Graph
             return contentFile;
         }
 
-        private static ProjectFileDependencyGroup ReadProjectFileDependencyGroup(string property, JsonValue json)
+        private ProjectFileDependencyGroup ReadProjectFileDependencyGroup(string property, JsonValue json)
         {
             return new ProjectFileDependencyGroup(
                 string.IsNullOrEmpty(property) ? null : NuGetFramework.Parse(property),
                 ReadArray(json, ReadString));
         }
 
-        private static PackageDependency ReadPackageDependency(string property, JsonValue json)
+        private PackageDependency ReadPackageDependency(string property, JsonValue json)
         {
             var versionStr = ReadString(json);
             return new PackageDependency(
                 property,
-                versionStr == null ? null : VersionRange.Parse(versionStr));
+                versionStr == null ? null : _symbols.GetVersionRange(versionStr));
         }
 
-        private static LockFileItem ReadFileItem(string property, JsonValue json)
+        private LockFileItem ReadFileItem(string property, JsonValue json)
         {
-            var item = new LockFileItem { Path = PathUtility.GetPathWithDirectorySeparator(property) };
+            var item = new LockFileItem { Path = _symbols.GetString(PathUtility.GetPathWithDirectorySeparator(property)) };
             var jobject = json as JsonObject;
 
             if (jobject != null)
             {
                 foreach (var subProperty in jobject.Keys)
                 {
-                    item.Properties[subProperty] = jobject.ValueAsString(subProperty);
+                    item.Properties[_symbols.GetString(subProperty)] = jobject.ValueAsString(subProperty);
                 }
             }
             return item;
         }
 
-        private static string ReadFrameworkAssemblyReference(JsonValue json)
+        private string ReadFrameworkAssemblyReference(JsonValue json)
         {
             return ReadString(json);
         }
@@ -318,9 +329,9 @@ namespace Microsoft.DotNet.ProjectModel.Graph
             return items;
         }
 
-        private static IList<string> ReadPathArray(JsonValue json, Func<JsonValue, string> readItem)
+        private IList<string> ReadPathArray(JsonValue json, Func<JsonValue, string> readItem)
         {
-            return ReadArray(json, readItem).Select(f => PathUtility.GetPathWithDirectorySeparator(f)).ToList();
+            return ReadArray(json, readItem).Select(f => _symbols.GetString(PathUtility.GetPathWithDirectorySeparator(f))).ToList();
         }
 
         private static IList<TItem> ReadObject<TItem>(JsonObject json, Func<string, JsonValue, TItem> readItem)
@@ -368,11 +379,11 @@ namespace Microsoft.DotNet.ProjectModel.Graph
             }
         }
 
-        private static string ReadString(JsonValue json)
+        private string ReadString(JsonValue json)
         {
             if (json is JsonString)
             {
-                return (json as JsonString).Value;
+                return _symbols.GetString((json as JsonString).Value);
             }
             else if (json is JsonNull)
             {

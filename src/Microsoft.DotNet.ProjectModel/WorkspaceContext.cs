@@ -30,10 +30,12 @@ namespace Microsoft.DotNet.ProjectModel
 
         private bool _needRefresh;
         private readonly ProjectReaderSettings _settings;
+        private readonly bool _designTime;
 
-        private WorkspaceContext(IEnumerable<string> projectPaths, ProjectReaderSettings settings)
+        private WorkspaceContext(IEnumerable<string> projectPaths, ProjectReaderSettings settings, bool designTime)
         {
             _settings = settings;
+            _designTime = designTime;
 
             foreach (var path in projectPaths)
             {
@@ -55,21 +57,21 @@ namespace Microsoft.DotNet.ProjectModel
         /// If no path is provided, the workspace context is created empty and projects must be manually added
         /// to it using <see cref="AddProject(string)"/>.
         /// </summary>
-        public static WorkspaceContext CreateFrom(string projectPath)
+        public static WorkspaceContext CreateFrom(string projectPath, bool designTime)
         {
             var projectPaths = ResolveProjectPath(projectPath);
             if (projectPaths == null || !projectPaths.Any())
             {
-                return new WorkspaceContext(Enumerable.Empty<string>(), ProjectReaderSettings.ReadFromEnvironment());
+                return new WorkspaceContext(Enumerable.Empty<string>(), ProjectReaderSettings.ReadFromEnvironment(), designTime);
             }
 
-            var context = new WorkspaceContext(projectPaths, ProjectReaderSettings.ReadFromEnvironment());
+            var context = new WorkspaceContext(projectPaths, ProjectReaderSettings.ReadFromEnvironment(), designTime);
             return context;
         }
 
-        public static WorkspaceContext Create(ProjectReaderSettings settings)
+        public static WorkspaceContext Create(ProjectReaderSettings settings, bool designTime)
         {
-            return new WorkspaceContext(Enumerable.Empty<string>(), settings);
+            return new WorkspaceContext(Enumerable.Empty<string>(), settings, designTime);
         }
 
         public void AddProject(string path)
@@ -298,8 +300,12 @@ namespace Microsoft.DotNet.ProjectModel
                         .WithProjectResolver(path => GetProject(path).Model)
                         .WithLockFileResolver(path => GetLockFile(path))
                         .WithProject(project)
-                        .WithTargetFramework(framework.FrameworkName)
-                        .AsDesignTime();
+                        .WithTargetFramework(framework.FrameworkName);
+
+                    if (_designTime)
+                    {
+                        builder.AsDesignTime();
+                    }
 
                     currentEntry.ProjectContexts.Add(builder.Build());
                 }
