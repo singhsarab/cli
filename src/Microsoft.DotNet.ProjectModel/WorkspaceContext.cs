@@ -31,11 +31,13 @@ namespace Microsoft.DotNet.ProjectModel
         private bool _needRefresh;
         private readonly ProjectReaderSettings _settings;
         private readonly bool _designTime;
+        private readonly LockFileReader _lockFileReader;
 
         private WorkspaceContext(IEnumerable<string> projectPaths, ProjectReaderSettings settings, bool designTime)
         {
             _settings = settings;
             _designTime = designTime;
+            _lockFileReader = new LockFileReader();
 
             foreach (var path in projectPaths)
             {
@@ -254,7 +256,7 @@ namespace Microsoft.DotNet.ProjectModel
                     {
                         try
                         {
-                            currentEntry.Model = LockFileReader.Read(currentEntry.FilePath, fs, designTime: true);
+                            currentEntry.Model = _lockFileReader.ReadLockFile(currentEntry.FilePath, fs, designTime: true);
                             currentEntry.UpdateLastWriteTimeUtc();
                         }
                         catch (FileFormatException ex)

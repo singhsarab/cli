@@ -17,19 +17,20 @@ namespace Microsoft.DotNet.ProjectModel.Graph
     {
         private readonly LockFileSymbolTable _symbols;
 
+        public LockFileReader() : this(new LockFileSymbolTable()) { }
+
         public LockFileReader(LockFileSymbolTable symbols)
         {
             _symbols = symbols;
         }
 
-        public static LockFile Read(string lockFilePath, bool designTime) => Read(lockFilePath, designTime, new LockFileSymbolTable());
-        public static LockFile Read(string lockFilePath, bool designTime, LockFileSymbolTable symbols)
+        public static LockFile Read(string lockFilePath, bool designTime)
         {
             using (var stream = ResilientFileStreamOpener.OpenFile(lockFilePath))
             {
                 try
                 {
-                    return Read(lockFilePath, stream, designTime);
+                    return new LockFileReader().ReadLockFile(lockFilePath, stream, designTime);
                 }
                 catch (FileFormatException ex)
                 {
@@ -42,8 +43,7 @@ namespace Microsoft.DotNet.ProjectModel.Graph
             }
         }
 
-        public static LockFile Read(string lockFilePath, Stream stream, bool designTime) => Read(lockFilePath, stream, designTime, new LockFileSymbolTable());
-        public static LockFile Read(string lockFilePath, Stream stream, bool designTime, LockFileSymbolTable symbols)
+        public LockFile ReadLockFile(string lockFilePath, Stream stream, bool designTime)
         {
             try
             {
@@ -55,12 +55,11 @@ namespace Microsoft.DotNet.ProjectModel.Graph
                     throw new InvalidDataException();
                 }
 
-                var lockFileReader = new LockFileReader(symbols);
-                var lockFile = lockFileReader.ReadLockFile(lockFilePath, jobject);
+                var lockFile = ReadLockFile(lockFilePath, jobject);
 
                 if (!designTime)
                 {
-                    var patcher = new LockFilePatcher(lockFile, lockFileReader);
+                    var patcher = new LockFilePatcher(lockFile, this);
                     patcher.Patch();
                 }
 
@@ -284,7 +283,7 @@ namespace Microsoft.DotNet.ProjectModel.Graph
         {
             var versionStr = ReadString(json);
             return new PackageDependency(
-                property,
+                _symbols.GetString(property),
                 versionStr == null ? null : _symbols.GetVersionRange(versionStr));
         }
 
