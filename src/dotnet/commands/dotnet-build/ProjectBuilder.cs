@@ -1,3 +1,6 @@
+// Copyright (c) .NET Foundation and contributors. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,11 +9,6 @@ using NuGet.Frameworks;
 
 namespace Microsoft.DotNet.Tools.Build
 {
-    internal enum CompilationResult
-    {
-        IncrementalSkip, Success, Failure
-    }
-
     internal abstract class ProjectBuilder
     {
         private readonly bool _skipDependencies;
@@ -26,7 +24,6 @@ namespace Microsoft.DotNet.Tools.Build
         {
             foreach (var projectNode in roots)
             {
-                Console.WriteLine(projectNode.ProjectContext.Identity.TargetFramework);
                 yield return Build(projectNode);
             }
         }

@@ -1,3 +1,6 @@
+// Copyright (c) .NET Foundation and contributors. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
 using System;
 using System.Collections.Generic;
 using NuGet.Frameworks;
@@ -8,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace Microsoft.DotNet.Tools.Build
 {
-    public class ProjectGraphCollector
+    internal class ProjectGraphCollector
     {
         private readonly Func<string, NuGetFramework, ProjectContext> _projectContextFactory;
 
@@ -24,7 +27,7 @@ namespace Microsoft.DotNet.Tools.Build
                 var libraries = context.LibraryManager.GetLibraries();
                 var lookup = libraries.ToDictionary(l => l.Identity.Name);
                 var root = lookup[context.ProjectFile.Name];
-                yield return TraverseProject((ProjectDescription)root, lookup, context);
+                yield return TraverseProject((ProjectDescription) root, lookup, context);
             }
         }
 
