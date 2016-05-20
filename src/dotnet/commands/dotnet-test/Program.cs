@@ -99,6 +99,56 @@ namespace Microsoft.DotNet.Tools.Test
             }
         }
 
+        public static string[] ConvertToVsTestArgs(string[] args)
+        {
+            var translatedArgs = new List<string>();
+            if (args == null || args.Length == 0)
+            {
+                return translatedArgs.ToArray();
+            }
+
+            if (!(args[0].StartsWith("--") || args[0].StartsWith("-")))
+            {
+                translatedArgs.Add(args[0]);
+                args = args.Skip(1).ToArray();
+            }
+
+            string commandOption = null;
+            var commandOptionArgs = new List<string>();
+
+            foreach (var arg in args)
+            {
+                // arg is either an commandOption or its arguments
+                if (arg.StartsWith("--") || arg.StartsWith("-"))
+                {
+                    if (!string.IsNullOrEmpty(commandOption))
+                    {
+                        // Add the previous commandOption with its arguments
+                        translatedArgs.Add(
+                            commandOptionArgs.Count > 0 ? string.Concat(commandOption, ":", string.Join(",", commandOptionArgs)) : commandOption);
+                    }
+
+                    // We have a new commandOption, clear the args list
+                    commandOption = arg.Replace("--", "/").Replace("-", "/");
+                    commandOptionArgs.Clear();
+                }
+                else
+                {
+                    // Add arg to list
+                    commandOptionArgs.Add(arg);
+                }
+            }
+
+            // Add the last commandOption with its arguments
+            if (!string.IsNullOrEmpty(commandOption))
+            {
+                translatedArgs.Add(
+                    commandOptionArgs.Count > 0 ? string.Concat(commandOption, ":", string.Join(",", commandOptionArgs)) : commandOption);
+            }
+
+            return translatedArgs.ToArray();
+        }
+
         private static IEnumerable<ProjectContext> CreateProjectContexts(string projectPath, string runtime)
         {
             projectPath = projectPath ?? Directory.GetCurrentDirectory();
