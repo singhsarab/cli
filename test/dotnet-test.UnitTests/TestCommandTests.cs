@@ -15,6 +15,12 @@ namespace Microsoft.Dotnet.Tools.Test.Tests
         }
 
         [Fact]
+        public void ConvertToVsTestArgsForEmptyArgsArrayReturnsEmptyArgsArray()
+        {
+            Assert.Equal(new string[0], TestCommand.ConvertToVsTestArgs(new string[0]));
+        }
+
+        [Fact]
         public void ConvertToVsTestArgsForSingleArgReturnsArrayWithArg()
         {
             var args = new[] { "sourceArg" };
@@ -83,6 +89,15 @@ namespace Microsoft.Dotnet.Tools.Test.Tests
             var args = new[] { "sourceArg", "-owma", "arg1", "arg2", "arg3", "--optionWithOneArg", "arg" };
             var result = TestCommand.ConvertToVsTestArgs(args);
             var expectedResult = new[] { "sourceArg", "/owma:arg1,arg2,arg3", "/optionWithOneArg:arg" };
+            Assert.Equal(expectedResult, result);
+        }
+
+        [Fact]
+        public void ConvertToVsTestArgsForMixedArgs2()
+        {
+            var args = new[] { "sourceArg", "-owma", "arg1", "arg2", "arg3", "--optionWithOneArg", "arg", "--helloWorld", "foo", "bar" };
+            var result = TestCommand.ConvertToVsTestArgs(args);
+            var expectedResult = new[] { "sourceArg", "/owma:arg1,arg2,arg3", "/optionWithOneArg:arg", "/helloWorld:foo,bar" };
             Assert.Equal(expectedResult, result);
         }
     }

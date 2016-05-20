@@ -102,7 +102,7 @@ namespace Microsoft.DotNet.Tools.Test
         public static string[] ConvertToVsTestArgs(string[] args)
         {
             var translatedArgs = new List<string>();
-            if (args == null)
+            if (args == null || args.Length == 0)
             {
                 return translatedArgs.ToArray();
             }
@@ -140,7 +140,7 @@ namespace Microsoft.DotNet.Tools.Test
             }
 
             // Add the last commandOption with its arguments
-            if (commandOption != null)
+            if (!string.IsNullOrEmpty(commandOption))
             {
                 translatedArgs.Add(
                     commandOptionArgs.Count > 0 ? string.Concat(commandOption, ":", string.Join(",", commandOptionArgs)) : commandOption);
